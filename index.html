@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>라오어 투자 도구</title>
+<style>
+  :root{
+    --bg:#ffffff; --bg2:#f5f5f7; --card:#ffffff; --line:#d2d2d7; --line2:#e8e8ed;
+    --fg:#1d1d1f; --mut:#6e6e73; --blue:#0071e3; --blue2:#0077ed;
+    --up:#1d9e5e; --down:#d70015;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;
+    font-family:"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,"Apple SD Gothic Neo",sans-serif;
+    font-size:15px;line-height:1.47;letter-spacing:-.01em}
+  .wrap{max-width:980px;margin:0 auto;padding:26px 22px 90px}
+  header{display:flex;align-items:baseline;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+  h1{font-size:24px;font-weight:600;letter-spacing:-.022em;margin:0}
+  .sub{color:var(--mut);font-size:13px}
+  .grow{flex:1}
+  button{font:inherit;font-size:14px;color:var(--fg);background:var(--line2);border:none;
+    border-radius:980px;padding:8px 16px;cursor:pointer;letter-spacing:-.01em;transition:background .15s}
+  button:hover{background:#dcdce1}
+  button:active{transform:scale(.98)}
+  button.primary{background:var(--blue);color:#fff}
+  button.primary:hover{background:var(--blue2)}
+  button.sm{padding:5px 12px;font-size:13px}
+  button.ghost{background:transparent;border:1px solid var(--line)}
+  select,input{font:inherit;font-size:15px;color:var(--fg);background:#fff;border:1px solid var(--line);
+    border-radius:12px;padding:8px 11px;width:100%}
+  select:focus,input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,113,227,.15)}
+  .acctbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+  .acctbar select{width:auto;min-width:230px;font-weight:600}
+  .toast{font-size:13px;color:var(--mut);min-height:17px;margin:0 0 14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px 22px;margin-bottom:16px}
+  .card h3{margin:0 0 14px;font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .muted{color:var(--mut);font-weight:400}
+  .signal{border-radius:18px;padding:20px 24px;margin-bottom:16px;background:var(--bg2)}
+  .signal .big{font-size:26px;font-weight:600;letter-spacing:-.022em}
+  .signal .act{color:var(--mut);font-size:15px;margin-top:3px}
+  .t-hold{background:#e7f8ee} .t-hold .big{color:var(--up)}
+  .t-buy{background:#e8f1fd}  .t-buy .big{color:var(--blue)}
+  .t-sell{background:#fdecec} .t-sell .big{color:var(--down)}
+  .t-info{background:var(--bg2)} .t-info .big{color:var(--blue)}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+  .kpi{background:var(--bg2);border-radius:16px;padding:14px 16px}
+  .kpi .l{color:var(--mut);font-size:12px;margin-bottom:5px}
+  .kpi .v{font-size:19px;font-weight:600;letter-spacing:-.022em;font-variant-numeric:tabular-nums}
+  .kpi .v.sm{font-size:15px}
+  .kpi .krw{font-size:12px;color:var(--mut);font-weight:400;margin-top:1px}
+  .pos{color:var(--up)} .neg{color:var(--down)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+  .rung{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #f0f0f2;
+    font-variant-numeric:tabular-nums;font-size:14px}
+  .rung:last-child{border-bottom:0}
+  .rung .n{color:var(--mut)}
+  .buyc{color:var(--blue)} .sellc{color:var(--down)}
+  .cut{background:#fdecec;border:1px solid #f3c0c0;border-radius:14px;padding:11px 14px;margin-bottom:16px;color:#8a1420;font-size:13.5px}
+  form.editgrid{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:12px 14px;align-items:center}
+  form.editgrid label{color:var(--mut);font-size:13px}
+  .frow{grid-column:1/-1;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  summary{color:var(--fg);font-size:14px;font-weight:500;cursor:pointer;list-style:none}
+  summary::-webkit-details-marker{display:none} summary::before{content:"⌄ ";color:var(--mut)}
+  .warn{background:#fff8ec;border:1px solid #f2dfb0;border-radius:16px;padding:12px 15px;font-size:13px;color:#8a6512;margin-bottom:16px;line-height:1.5}
+  .fx{font-size:12.5px;color:var(--mut)}
+  .empty{text-align:center;color:var(--mut);padding:50px 0}
+  @media(max-width:640px){.grid{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}
+    form.editgrid{grid-template-columns:auto 1fr}h1{font-size:20px}.wrap{padding:20px 15px 70px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>라오어 투자 도구</h1>
+    <span class="fx" id="fx"></span>
+    <div class="grow"></div>
+  </header>
+
+  <div class="acctbar">
+    <select id="acctSel"></select>
+    <button class="sm" id="btnNew">+ 새 계좌</button>
+    <button class="sm ghost" id="btnEdit">설정</button>
+    <button class="sm ghost" id="btnDel">삭제</button>
+    <div class="grow"></div>
+    <button class="sm ghost" id="btnExport">내보내기</button>
+    <button class="sm ghost" id="btnImport">불러오기</button>
+    <input type="file" id="fileImport" accept="application/json" hidden>
+    <button class="sm" id="btnPrice">시세 새로고침</button>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <!-- 계좌 생성/편집 폼 -->
+  <div class="card" id="editCard" hidden>
+    <h3 id="editTitle">새 계좌</h3>
+    <form class="editgrid" id="acctForm">
+      <label>이름</label><input id="fName" placeholder="예: SOXL 무매 1차" required>
+      <label>전략</label>
+      <select id="fStrategy">
+        <option value="vr_accum">VR 적립식</option>
+        <option value="vr_hold">VR 거치식</option>
+        <option value="vr_wd">VR 인출식</option>
+        <option value="im">무한매수</option>
+      </select>
+      <label>티커</label><input id="fTicker" placeholder="예: TQQQ, SOXL" required style="text-transform:uppercase">
+      <span></span><span></span>
+      <!-- VR 필드 -->
+      <div class="frow" id="vrFields" style="display:grid;grid-template-columns:auto 1fr auto 1fr;gap:12px 14px;width:100%">
+        <label>V(목표)$</label><input id="fV" type="number" step="1" placeholder="비우면 보유×현재가">
+        <label>V밴드</label><select id="fBand"><option value="0.15">±15%</option><option value="0.25">±25%</option></select>
+        <label>보유수량</label><input id="fShares" type="number" step="1" value="0">
+        <label>평단$</label><input id="fAvg" type="number" step="0.01" value="0">
+        <label>POOL$</label><input id="fPool" type="number" step="0.01" value="0">
+        <label>적립금$</label><input id="fDep" type="number" step="1" value="0" title="적립식 격주 적립(거치식은 0)">
+      </div>
+      <!-- IM 필드 -->
+      <div class="frow" id="imFields" style="display:none;grid-template-columns:auto 1fr auto 1fr;gap:12px 14px;width:100%">
+        <label>버전</label><select id="fVer"><option value="v2.2">v2.2 (40분할·안정)</option><option value="v3.0">v3.0 (20분할·공격)</option><option value="v4.0">v4.0 (20분할)</option></select>
+        <label>원금$</label><input id="fSeed" type="number" step="1" value="4000">
+        <label>분할수</label><input id="fDiv" type="number" step="1" value="40">
+        <label>보유수량</label><input id="fQty" type="number" step="1" value="0">
+        <label>평단$</label><input id="fImAvg" type="number" step="0.01" value="0">
+        <label>누적매수$</label><input id="fCum" type="number" step="0.01" value="0">
+        <label>익절률</label><input id="fTP" type="number" step="0.01" value="0.15" title="TQQQ 0.15 / SOXL 0.20 / 기타 0.10">
+        <details style="grid-column:1/-1"><summary>고급 — 별지점 산식</summary>
+          <div class="frow" style="margin-top:8px">
+            <label class="muted">별지점 A</label><input id="fBigA" type="number" step="0.5" value="15" style="width:80px">
+            <label class="muted">B</label><input id="fBigB" type="number" step="0.5" value="1.5" style="width:80px">
+            <span class="muted">별지점% = A − B·T (주류 15/1.5)</span>
+          </div>
+        </details>
+      </div>
+      <div class="frow">
+        <button type="submit" class="primary">저장</button>
+        <button type="button" class="ghost" id="btnCancel">취소</button>
+        <span class="muted" id="editHint"></span>
+      </div>
+    </form>
+  </div>
+
+  <!-- 계좌 대시보드 -->
+  <div id="view"></div>
+  <div class="empty" id="emptyMsg" hidden>계좌가 없습니다. <b>+ 새 계좌</b>로 종목·차수를 추가하세요.</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const usd=n=>'$'+Math.round(n).toLocaleString('en-US');
+const usd2=n=>'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const pct=n=>(n>=0?'+':'')+(n*100).toFixed(1)+'%';
+const cls=n=>n>=0?'pos':'neg';
+const SIG={hold:'홀드',buy:'매수',sell:'매도'};
+let FX=null;                 // USD/KRW
+const won=n=> FX? '₩'+Math.round(n*FX).toLocaleString('en-US') : '';
+function toast(m){ $('toast').textContent=m||''; }
+async function api(url,opt){ const r=await fetch(url,opt); const j=await r.json(); if(j.error) throw new Error(j.error); return j; }
+async function post(url,body){ return api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}); }
+
+// ── 저장소 ──
+const KEY='laoar_accounts_v1';
+let accounts=[], curId=null, priceCache={};
+function load(){ try{ accounts=JSON.parse(localStorage.getItem(KEY))||[]; }catch(e){ accounts=[]; }
+  curId=localStorage.getItem(KEY+'_cur');
+  if(!accounts.length){ accounts=[demo()]; } // 첫 로드 예시 계좌(편집/삭제 가능)
+  if(!accounts.find(a=>a.id===curId)) curId=accounts[0]?.id||null;
+  save(); }
+function save(){ localStorage.setItem(KEY,JSON.stringify(accounts)); if(curId)localStorage.setItem(KEY+'_cur',curId); }
+function cur(){ return accounts.find(a=>a.id===curId); }
+function uid(){ return 'a'+Math.random().toString(36).slice(2,9); }
+function demo(){ return {id:uid(),name:'TQQQ VR 적립 (예시)',strategy:'vr_accum',ticker:'TQQQ',
+  V:0,band:0.15,shares:100,avg:60,pool:5000,dep:200}; }
+function tpDefault(t){ t=(t||'').toUpperCase(); return t==='SOXL'?0.20:t==='TQQQ'?0.15:0.10; }
+
+// ── 계좌 선택 UI ──
+function renderSelect(){
+  $('acctSel').innerHTML=accounts.map(a=>`<option value="${a.id}" ${a.id===curId?'selected':''}>${labelOf(a)}</option>`).join('');
+  $('emptyMsg').hidden = accounts.length>0;
+}
+function labelOf(a){ const s={vr_accum:'VR적립',vr_hold:'VR거치',vr_wd:'VR인출',im:'무매'}[a.strategy]; return `${a.name} · ${a.ticker} · ${s}`; }
+
+// ── 가격 ──
+async function priceOf(ticker,force){
+  if(!force && priceCache[ticker]) return priceCache[ticker];
+  const p=await api('/api/price?ticker='+encodeURIComponent(ticker));
+  priceCache[ticker]=p; return p;
+}
+async function loadFX(){ try{ FX=(await api('/api/fx')).usdkrw; $('fx').textContent=`환율 ₩${FX?.toLocaleString('en-US')}/$`; }catch(e){ $('fx').textContent='환율 조회 실패'; } }
+
+// ── 렌더 ──
+async function renderCur(force){
+  const a=cur(); const v=$('view');
+  if(!a){ v.innerHTML=''; return; }
+  v.innerHTML='<div class="muted">시세 불러오는 중…</div>';
+  let price; try{ price=await priceOf(a.ticker,force); }
+  catch(e){ v.innerHTML=`<div class="warn">시세 조회 실패: ${e.message}. 티커(${a.ticker})를 확인하세요.</div>`; return; }
+  const close=price.close;
+  try{
+    if(a.strategy==='im') await renderIM(a,close,price.date);
+    else await renderVR(a,close,price.date);
+  }catch(e){ v.innerHTML=`<div class="warn">계산 실패: ${e.message}</div>`; }
+}
+function kpi(label,usdVal,sm,klass){
+  const w=won(usdVal); return `<div class="kpi"><div class="l">${label}</div>`
+    +`<div class="v ${sm?'sm':''} ${klass||''}">${usd(usdVal)}</div>${w?`<div class="krw">${w}</div>`:''}</div>`;
+}
+function kpiRaw(label,html,sm){ return `<div class="kpi"><div class="l">${label}</div><div class="v ${sm?'sm':''}">${html}</div></div>`; }
+
+async function renderVR(a,close,date){
+  const V=(a.V&&a.V>0)?a.V:a.shares*close;
+  const acct=a.strategy==='vr_hold'?'거치식':a.strategy==='vr_wd'?'인출식':'적립식';
+  const s=await post('/api/vr_plan',{V,qty:a.shares,avg:a.avg,pool:a.pool,close,band:a.band,acct_type:acct});
+  $('view').innerHTML=`
+    <div class="sub" style="margin-bottom:12px">${a.ticker} · ${acct} · ${date} 종가 ${usd2(close)}</div>
+    <div class="signal t-${s.tone}"><div class="big">${SIG[s.tone]}</div><div class="act">${s.action}</div></div>
+    <div class="grid">
+      ${kpi('평가금',s.equity)}
+      ${kpiRaw('V밴드',`${usd(s.Vmin)} ~ ${usd(s.Vmax)}`,true)}
+      ${kpi('V(목표)',s.V)}
+      ${kpiRaw('보유',`${s.shares.toFixed(0)}주 · ${usd2(s.avg)}`,true)}
+      ${kpi('POOL(현금)',s.pool)}
+      ${kpi('총자산',s.total)}
+      ${kpiRaw('평가수익',`<span class="${cls(s.pos_return)}">${pct(s.pos_return)}</span>`)}
+      ${kpiRaw('밴드',`±${(s.band*100).toFixed(0)}%`)}
+    </div>
+    <div class="cols">
+      <div class="card"><h3>LOC 매수 사다리 <span class="muted">POOL 바닥 ${usd(s.ladder.floor)}</span></h3>${ladderHtml(s.ladder.buys,'buy')}</div>
+      <div class="card"><h3>LOC 매도 사다리</h3>${ladderHtml(s.ladder.sells,'sell')}</div>
+    </div>
+    ${tradeCardVR(a)}`;
+  wireTradeVR(a,close);
+}
+
+async function renderIM(a,close,date){
+  const s=await post('/api/im',{seed:a.seed,divisions:a.div,qty:a.qty,avg:a.avg,cum_buy:a.cum,
+    close,take_profit:a.tp,big_a:a.bigA,big_b:a.bigB});
+  const phase = s.cycle_done?'사이클 시작 (보유 0)':(s.exhausted?'원금 소진 임박':s.phase);
+  $('view').innerHTML=`
+    <div class="sub" style="margin-bottom:12px">${a.ticker} · 무한매수 ${a.version||'v2.2'} · ${date} 종가 ${usd2(close)}</div>
+    <div class="warn">계산 로직은 <b>v2.2 기준</b>(별지점 15−1.5T%). ${(a.version&&a.version!=='v2.2')?`<b>${a.version}은 분할수·익절만 프리셋 적용</b> — 복리·지정가매도(v3)·리버스/소진모드(v4)는 미구현(카페 원문 확정 후 반영). `:''}별지점 산식·쿼터매도·소진 후처리는 카페 원문으로 확정 권장. 자문용.</div>
+    <div class="signal t-info"><div class="big">${phase}</div><div class="act">T ${s.T}/${s.divisions} · 진행률 ${(s.progress*100).toFixed(0)}% · 별지점 ${s.star_pct}% · 1회매수액 ${usd2(s.unit_buy)}</div></div>
+    ${s.quarter_cut?`<div class="cut"><b>쿼터손절 신호</b> — ${s.quarter_cut.shares}주 ${s.quarter_cut.kind} · ${s.quarter_cut.note}</div>`:''}
+    <div class="grid">
+      ${kpiRaw('보유',a.qty>0?`${a.qty.toFixed(0)}주 · ${usd2(a.avg)}`:'0주',true)}
+      ${kpi('취득원가',s.cost)}
+      ${kpi('평가금',s.equity)}
+      ${kpiRaw('평가손익',`<span class="${cls(s.unrealized)}">${s.unrealized>=0?'+':''}${usd(s.unrealized)} (${pct(s.unrealized_pct)})</span>`,true)}
+      ${kpiRaw('전량익절가',s.target_price?usd2(s.target_price):'—')}
+      ${kpi('누적매수액',s.cum_buy)}
+    </div>
+    <div class="cols">
+      <div class="card"><h3>오늘 매수 <span class="muted">LOC</span></h3>${imOrders(s.buys,'buy')}</div>
+      <div class="card"><h3>오늘 매도</h3>${imOrders(s.sells,'sell')}</div>
+    </div>
+    ${tradeCardIM(a)}`;
+  wireTradeIM(a,close);
+}
+function ladderHtml(arr,side){ if(!arr.length) return '<div class="muted">해당 없음</div>';
+  return arr.map((b,i)=>`<div class="rung"><span class="n">${i+1}</span>`
+    +`<span class="${side==='buy'?'buyc':'sellc'}">${usd2(b.price)} ${side==='buy'?'이하':'이상'}</span>`
+    +`<span>1주 · ${side==='buy'?'잔여 '+usd(b.pool_after):'보유 '+b.shares_after}</span></div>`).join(''); }
+function imOrders(arr,side){ if(!arr.length) return `<div class="muted">${side==='buy'?'매수 없음':'매도 없음'}</div>`;
+  return arr.map(o=>`<div class="rung"><span class="${side==='buy'?'buyc':'sellc'}">${usd2(o.price)} <span class="muted">${o.kind}</span></span><span>${o.shares}주 · ${o.note}</span></div>`).join(''); }
+
+// ── 체결 반영(상태 갱신) ──
+function tradeCardVR(a){ return `<div class="card"><h3>체결 반영 <span class="muted">주문·체결은 직접, 여기엔 기록만 → 보유·POOL 갱신</span></h3>
+  <form class="editgrid" id="tf"><label>구분</label><select id="tSide"><option value="1">매수(+)</option><option value="-1">매도(−)</option></select>
+  <label>수량</label><input id="tQty" type="number" step="1" placeholder="주">
+  <label>단가$</label><input id="tPrice" type="number" step="0.01">
+  <label>수수료$</label><input id="tFee" type="number" step="0.01" placeholder="0">
+  <div class="frow"><button type="submit" class="primary sm">반영</button>
+  <span class="muted">매수 시 POOL−(수량×단가+수수료), 매도 시 POOL+.</span></div></form></div>`; }
+function wireTradeVR(a,close){ const f=$('tf'); if(!f)return; f.onsubmit=e=>{e.preventDefault();
+  const side=+$('tSide').value, q=Math.abs(+$('tQty').value), pr=+$('tPrice').value, fee=+($('tFee').value||0);
+  if(!q||!pr) return toast('수량·단가를 입력하세요');
+  const amt=q*pr+fee;
+  if(side>0){ const cost=a.shares*a.avg+q*pr; a.shares+=q; a.avg=a.shares?cost/a.shares:0; a.pool-=amt; }
+  else{ a.shares-=q; a.pool+=q*pr-fee; if(a.shares<0)a.shares=0; }
+  save(); toast('반영됨'); renderCur(); }; }
+function tradeCardIM(a){ return `<div class="card"><h3>체결 반영 <span class="muted">보유·평단·누적매수·사이클 갱신</span></h3>
+  <form class="editgrid" id="tf"><label>구분</label><select id="tSide"><option value="1">매수(+)</option><option value="-1">매도(−)</option></select>
+  <label>수량</label><input id="tQty" type="number" step="1" placeholder="주">
+  <label>단가$</label><input id="tPrice" type="number" step="0.01">
+  <div class="frow"><button type="submit" class="primary sm">반영</button>
+  <span class="muted">매수 시 누적매수액↑, 전량매도(보유 0) 시 사이클 리셋.</span></div></form></div>`; }
+function wireTradeIM(a,close){ const f=$('tf'); if(!f)return; f.onsubmit=e=>{e.preventDefault();
+  const side=+$('tSide').value, q=Math.abs(+$('tQty').value), pr=+$('tPrice').value;
+  if(!q||!pr) return toast('수량·단가를 입력하세요');
+  if(side>0){ const cost=a.qty*a.avg+q*pr; a.qty+=q; a.avg=a.qty?cost/a.qty:0; a.cum+=q*pr; }
+  else{ a.qty-=q; if(a.qty<=0){ a.qty=0; a.avg=0; a.cum=0; toast('전량매도 — 사이클 리셋'); } }
+  save(); if(a.qty>0)toast('반영됨'); renderCur(); }; }
+
+// ── 계좌 생성/편집 ──
+let editingId=null;
+function openEdit(a){ editingId=a?a.id:null; $('editTitle').textContent=a?'계좌 설정':'새 계좌';
+  const s=a?a.strategy:'vr_accum'; $('fStrategy').value=s; $('fName').value=a?a.name:''; $('fTicker').value=a?a.ticker:'';
+  if(a&&a.strategy==='im'){ $('fVer').value=a.version||'v2.2';$('fSeed').value=a.seed;$('fDiv').value=a.div;$('fQty').value=a.qty;$('fImAvg').value=a.avg;$('fCum').value=a.cum;$('fTP').value=a.tp;$('fBigA').value=a.bigA;$('fBigB').value=a.bigB; }
+  else if(a){ $('fV').value=a.V||'';$('fBand').value=a.band;$('fShares').value=a.shares;$('fAvg').value=a.avg;$('fPool').value=a.pool;$('fDep').value=a.dep||0; }
+  syncFields(); $('editCard').hidden=false; window.scrollTo(0,0); }
+function syncFields(){ const im=$('fStrategy').value==='im'; $('imFields').style.display=im?'grid':'none'; $('vrFields').style.display=im?'none':'grid'; }
+$('fStrategy').onchange=()=>{ syncFields(); const t=$('fTicker').value; if(t)$('fTP').value=tpDefault(t); };
+$('fTicker').oninput=()=>{ if($('fStrategy').value==='im')$('fTP').value=tpDefault($('fTicker').value); };
+$('fVer').onchange=()=>{ $('fDiv').value = $('fVer').value==='v2.2'?40:20; };
+$('acctForm').onsubmit=e=>{ e.preventDefault();
+  const strat=$('fStrategy').value, ticker=$('fTicker').value.toUpperCase().trim(), name=$('fName').value.trim();
+  if(!ticker||!name) return;
+  let a = editingId? accounts.find(x=>x.id===editingId) : {id:uid()};
+  Object.assign(a,{name,strategy:strat,ticker});
+  if(strat==='im'){ Object.assign(a,{version:$('fVer').value,seed:+$('fSeed').value,div:+$('fDiv').value,qty:+$('fQty').value,
+    avg:+$('fImAvg').value,cum:+$('fCum').value,tp:+$('fTP').value,bigA:+$('fBigA').value,bigB:+$('fBigB').value}); }
+  else{ Object.assign(a,{V:+($('fV').value||0),band:+$('fBand').value,shares:+$('fShares').value,
+    avg:+$('fAvg').value,pool:+$('fPool').value,dep:+($('fDep').value||0)}); }
+  if(!editingId) accounts.push(a);
+  curId=a.id; save(); $('editCard').hidden=true; priceCache={}; renderSelect(); renderCur(); toast('저장됨'); };
+$('btnCancel').onclick=()=>{ $('editCard').hidden=true; };
+$('btnNew').onclick=()=>openEdit(null);
+$('btnEdit').onclick=()=>{ const a=cur(); if(a)openEdit(a); };
+$('btnDel').onclick=()=>{ const a=cur(); if(!a)return; if(!confirm(`'${a.name}' 계좌를 삭제할까요?`))return;
+  accounts=accounts.filter(x=>x.id!==a.id); curId=accounts[0]?.id||null; save(); renderSelect(); renderCur(); toast('삭제됨'); };
+$('acctSel').onchange=()=>{ curId=$('acctSel').value; save(); renderCur(); };
+$('btnPrice').onclick=async()=>{ toast('시세 갱신 중…'); await loadFX(); await renderCur(true); toast('시세 갱신됨'); };
+
+// ── 데이터 백업(내보내기/불러오기) ── 브라우저 저장뿐이라 캐시 지우면 소실 → 정기 백업 권장
+$('btnExport').onclick=()=>{ const blob=new Blob([JSON.stringify(accounts,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='laoar-accounts-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+  URL.revokeObjectURL(a.href); toast(`계좌 ${accounts.length}개 내보냄`); };
+$('btnImport').onclick=()=>$('fileImport').click();
+$('fileImport').onchange=e=>{ const f=e.target.files[0]; if(!f)return; const rd=new FileReader();
+  rd.onload=()=>{ try{ const data=JSON.parse(rd.result);
+      if(!Array.isArray(data)||!data.every(x=>x&&x.id&&x.strategy)) throw new Error('계좌 파일 형식이 아닙니다');
+      if(!confirm(`현재 계좌를 불러온 ${data.length}개로 교체합니다. 계속할까요?`)){ $('fileImport').value=''; return; }
+      accounts=data; curId=accounts[0]?.id||null; save(); priceCache={}; renderSelect(); renderCur(); toast(`불러옴: ${data.length}개`);
+    }catch(err){ toast('불러오기 실패: '+err.message); } finally{ $('fileImport').value=''; } };
+  rd.readAsText(f); };
+
+// ── 시작 ──
+(async()=>{ load(); renderSelect(); await loadFX(); renderCur(); })();
+</script>
+</body>
+</html>
