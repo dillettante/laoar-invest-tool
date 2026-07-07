@@ -1,8 +1,9 @@
 # Render Blueprint — 저장소를 Render에 연결하면 이 설정으로 자동 배포됩니다.
+# 외부 의존성이 없어 빌드는 사실상 no-op(requirements.txt에 패키지 없음).
 services:
   - type: web
     name: laoar-invest-tool
     runtime: python
     plan: free
-    buildCommand: ""
+    buildCommand: pip install -r requirements.txt
     startCommand: python3 server.py $PORT 0.0.0.0
