@@ -1,0 +1,8 @@
+# Render Blueprint — 저장소를 Render에 연결하면 이 설정으로 자동 배포됩니다.
+services:
+  - type: web
+    name: laoar-invest-tool
+    runtime: python
+    plan: free
+    buildCommand: ""
+    startCommand: python3 server.py $PORT 0.0.0.0
