@@ -231,12 +231,35 @@ async function renderVR(a,close,date){
   wireTradeVR(a,close);
 }
 
+// ── 무한매수 거래기록 원장 replay: 체결 로그 → 보유·평단·사이클·복리 시드 파생 ──
+function imReplay(a){
+  const log=a.log||[]; const N=v=>(+v||0);
+  let cyc=1, held=0, avg=0, cumBuy=0, sellAmt=0, rounds=0, cycleSeed=N(a.seed);
+  const rows=[], cycles=[];
+  for(const e of log){
+    if(e.open){ held=N(e.held); avg=N(e.avg); cumBuy=(e.cum!=null?N(e.cum):held*avg);
+      rows.push({date:e.date||'개시',kind:'개시',held,avg,cyc,buyAmt:cumBuy,sellAmt:0}); continue; }
+    const bAmt=N(e.pAvg)*N(e.qAvg)+N(e.pBig)*N(e.qBig), bQty=N(e.qAvg)+N(e.qBig);
+    const sQty=N(e.qSell), sAmt=N(e.pSell)*N(e.qSell);
+    if(bQty>0){ avg=(held*avg+bAmt)/(held+bQty); held+=bQty; cumBuy+=bAmt; rounds++; }
+    if(sQty>0){ held-=sQty; sellAmt+=sAmt; if(held<1e-9)held=0; }
+    rows.push({date:e.date,kind:(bQty>0&&sQty>0)?'매수+매도':bQty>0?'매수':'매도',held,avg,cyc,buyAmt:bAmt,sellAmt:sAmt});
+    if(sQty>0 && held===0){ const profit=sellAmt-cumBuy;
+      cycles.push({cycle:cyc,startSeed:cycleSeed,buy:cumBuy,sell:sellAmt,profit,rounds,status:'✅ 완료'});
+      cyc++; cycleSeed+=profit; held=0; avg=0; cumBuy=0; sellAmt=0; rounds=0; }
+  }
+  cycles.push({cycle:cyc,startSeed:cycleSeed,buy:cumBuy,sell:sellAmt,profit:sellAmt-cumBuy,rounds,status:cumBuy>0?'🔄 진행중':'대기'});
+  return {held,avg,cumBuy,cycle:cyc,currentSeed:cycleSeed,rows,cycles};
+}
+
 async function renderIM(a,close,date){
-  const s=await post('/api/im',{seed:a.seed,divisions:a.div,qty:a.qty,avg:a.avg,cum_buy:a.cum,
+  if(!a.log){ a.log = a.qty>0?[{open:true,date:'개시',held:a.qty,avg:a.avg,cum:(a.cum||a.qty*a.avg)}]:[]; save(); }
+  const R=imReplay(a);
+  const s=await post('/api/im',{seed:R.currentSeed||a.seed,divisions:a.div,qty:R.held,avg:R.avg,cum_buy:R.cumBuy,
     close,take_profit:a.tp,big_a:a.bigA,big_b:a.bigB});
   const phase = s.cycle_done?'사이클 시작 (보유 0)':(s.exhausted?'원금 소진 임박':s.phase);
   $('view').innerHTML=`
-    <div class="sub" style="margin-bottom:10px">${a.ticker} · 무한매수 ${a.version||'v2.2'} · ${date} 종가 ${usd2(close)}</div>
+    <div class="sub" style="margin-bottom:10px">${a.ticker} · 무한매수 ${a.version||'v2.2'} · <b>사이클 ${R.cycle}</b> · ${date} 종가 ${usd2(close)}</div>
     <details class="card" style="margin-bottom:14px">
       <summary>📖 무한매수 처음이세요? — 용어·읽는 법 (펼치기)</summary>
       <div style="margin-top:10px;font-size:13.5px;line-height:1.75">
@@ -256,19 +279,20 @@ async function renderIM(a,close,date){
     <div class="signal t-info"><div class="big">${phase}</div><div class="act">T ${s.T}/${s.divisions} (진행률 ${(s.progress*100).toFixed(0)}%) · 별지점 ${s.star_pct}% → 큰수매수가 = 평단 × ${(1+s.star_pct/100).toFixed(2)} · 1회매수금 ${usd2(s.unit_buy)}</div></div>
     ${s.quarter_cut?`<div class="cut"><b>쿼터손절 신호</b> — ${s.quarter_cut.shares}주 ${s.quarter_cut.kind} · ${s.quarter_cut.note}</div>`:''}
     <div class="grid">
-      ${kpiRaw('보유',a.qty>0?`${a.qty.toFixed(0)}주 · ${usd2(a.avg)}`:'0주',true)}
+      ${kpiRaw('보유',R.held>0?`${R.held.toFixed(0)}주 · ${usd2(R.avg)}`:'0주',true)}
       ${kpi('취득원가',s.cost)}
       ${kpi('평가금',s.equity)}
       ${kpiRaw('평가손익',`<span class="${cls(s.unrealized)}">${s.unrealized>=0?'+':''}${usd(s.unrealized)} (${pct(s.unrealized_pct)})</span>`,true)}
       ${kpiRaw('전량익절가',s.target_price?usd2(s.target_price):'—')}
-      ${kpi('누적매수액',s.cum_buy)}
+      ${kpi('사이클 시드 <span class="muted">복리</span>',R.currentSeed)}
     </div>
     <div class="cols">
       <div class="card"><h3>오늘 매수 주문 <span class="muted">종가가 이 값 이하면 체결</span></h3>${imOrders(s.buys,'buy')}</div>
       <div class="card"><h3>오늘 매도 주문 <span class="muted">종가가 이 값 이상이면 체결</span></h3>${imOrders(s.sells,'sell')}</div>
     </div>
-    ${tradeCardIM(a)}`;
-  wireTradeIM(a,close);
+    ${imCycleCard(R)}
+    ${imLedgerCard(a,R)}`;
+  wireLedger(a);
 }
 function ladderHtml(arr,side){ if(!arr.length) return '<div class="muted">해당 없음</div>';
   return arr.map((b,i)=>`<div class="rung"><span class="n">${i+1}</span>`
@@ -292,18 +316,39 @@ function wireTradeVR(a,close){ const f=$('tf'); if(!f)return; f.onsubmit=e=>{e.p
   if(side>0){ const cost=a.shares*a.avg+q*pr; a.shares+=q; a.avg=a.shares?cost/a.shares:0; a.pool-=amt; }
   else{ a.shares-=q; a.pool+=q*pr-fee; if(a.shares<0)a.shares=0; }
   save(); toast('반영됨'); renderCur(); }; }
-function tradeCardIM(a){ return `<div class="card"><h3>체결 반영 <span class="muted">보유·평단·누적매수·사이클 갱신</span></h3>
-  <form class="editgrid" id="tf"><label>구분</label><select id="tSide"><option value="1">매수(+)</option><option value="-1">매도(−)</option></select>
-  <label>수량</label><input id="tQty" type="number" step="1" placeholder="주">
-  <label>단가$</label><input id="tPrice" type="number" step="0.01">
-  <div class="frow"><button type="submit" class="primary sm">반영</button>
-  <span class="muted">매수 시 누적매수액↑, 전량매도(보유 0) 시 사이클 리셋.</span></div></form></div>`; }
-function wireTradeIM(a,close){ const f=$('tf'); if(!f)return; f.onsubmit=e=>{e.preventDefault();
-  const side=+$('tSide').value, q=Math.abs(+$('tQty').value), pr=+$('tPrice').value;
-  if(!q||!pr) return toast('수량·단가를 입력하세요');
-  if(side>0){ const cost=a.qty*a.avg+q*pr; a.qty+=q; a.avg=a.qty?cost/a.qty:0; a.cum+=q*pr; }
-  else{ a.qty-=q; if(a.qty<=0){ a.qty=0; a.avg=0; a.cum=0; toast('전량매도 — 사이클 리셋'); } }
-  save(); if(a.qty>0)toast('반영됨'); renderCur(); }; }
+function imCycleCard(R){
+  const rows=R.cycles.map(c=>`<tr><td>${c.cycle}</td><td>${c.status}</td><td>${usd(c.startSeed)}</td>`
+    +`<td>${c.buy?usd(c.buy):'—'}</td><td>${c.sell?usd(c.sell):'—'}</td>`
+    +`<td class="${c.status.includes('완료')?cls(c.profit):''}">${c.status.includes('완료')?(c.profit>=0?'+':'')+usd(c.profit):'—'}</td><td>${c.rounds}</td></tr>`).join('');
+  return `<div class="card" style="margin-bottom:14px"><h3>사이클 요약 <span class="muted">사이클 완료 시 수익이 다음 시드에 반영(복리)</span></h3>
+    <div style="overflow-x:auto"><table><tr><th>사이클</th><th>상태</th><th>시작시드</th><th>총매수</th><th>총매도</th><th>수익</th><th>회차</th></tr>${rows}</table></div></div>`;
+}
+function imLedgerCard(a,R){
+  const rr=R.rows.slice(-15).reverse().map(x=>`<tr><td>${x.date||''}</td><td>${x.kind}</td>`
+    +`<td class="buyc">${x.buyAmt?usd(x.buyAmt):'—'}</td><td class="sellc">${x.sellAmt?usd(x.sellAmt):'—'}</td>`
+    +`<td>${x.held.toFixed(0)}</td><td>${x.avg?usd2(x.avg):'—'}</td><td>${x.cyc}</td></tr>`).join('');
+  return `<div class="card"><h3>거래기록 <span class="muted">체결한 대로 기록 → 보유·평단·사이클 자동 계산</span></h3>
+    <form class="editgrid" id="lf" style="grid-template-columns:auto 1fr auto 1fr">
+      <label>날짜</label><input id="lDate" type="date"><span></span><span></span>
+      <label class="buyc">평단매수 가$</label><input id="lpAvg" type="number" step="0.01" placeholder="평단가"><label>수량</label><input id="lqAvg" type="number" step="1" placeholder="주">
+      <label class="buyc">큰수매수 가$</label><input id="lpBig" type="number" step="0.01" placeholder="별지점가"><label>수량</label><input id="lqBig" type="number" step="1" placeholder="주">
+      <label class="sellc">매도 가$</label><input id="lpSell" type="number" step="0.01" placeholder="매도가"><label>수량</label><input id="lqSell" type="number" step="1" placeholder="주">
+      <label>종가$</label><input id="lClose" type="number" step="0.01" placeholder="선택"><span></span><span></span>
+      <div class="frow"><button type="submit" class="primary sm">기록 추가</button>
+      <button type="button" class="ghost sm" id="lUndo">마지막 삭제</button>
+      <span class="muted">체결된 칸만 입력(미체결은 비움). 전량매도(보유 0)면 사이클 자동 종료·복리.</span></div>
+    </form>
+    <div style="overflow-x:auto;margin-top:12px"><table><tr><th>날짜</th><th>구분</th><th>매수액</th><th>매도액</th><th>보유</th><th>평단</th><th>사이클</th></tr>${rr||'<tr><td colspan="7" class="muted">기록 없음 — 첫 체결을 추가하세요</td></tr>'}</table></div></div>`;
+}
+function wireLedger(a){
+  const f=$('lf'); if(!f)return;
+  $('lDate').value=new Date().toISOString().slice(0,10);
+  f.onsubmit=e=>{ e.preventDefault(); const g=id=>{const v=$(id).value; return v===''?null:+v;};
+    const row={date:$('lDate').value, pAvg:g('lpAvg'), qAvg:g('lqAvg'), pBig:g('lpBig'), qBig:g('lqBig'), pSell:g('lpSell'), qSell:g('lqSell'), close:g('lClose')};
+    if(!(row.qAvg||row.qBig||row.qSell)) return toast('체결 수량을 하나 이상 입력하세요');
+    a.log=a.log||[]; a.log.push(row); save(); toast('기록 추가됨'); renderCur(); };
+  const u=$('lUndo'); if(u) u.onclick=()=>{ if(!a.log||!a.log.length)return; if(!confirm('마지막 기록을 삭제할까요?'))return; a.log.pop(); save(); toast('삭제됨'); renderCur(); };
+}
 
 // ── 계좌 생성/편집 ──
 let editingId=null;
@@ -322,7 +367,10 @@ $('acctForm').onsubmit=e=>{ e.preventDefault();
   let a = editingId? accounts.find(x=>x.id===editingId) : {id:uid()};
   Object.assign(a,{name,strategy:strat,ticker});
   if(strat==='im'){ Object.assign(a,{version:$('fVer').value,seed:+$('fSeed').value,div:+$('fDiv').value,qty:+$('fQty').value,
-    avg:+$('fImAvg').value,cum:+$('fCum').value,tp:+$('fTP').value,bigA:+$('fBigA').value,bigB:+$('fBigB').value}); }
+    avg:+$('fImAvg').value,cum:+$('fCum').value,tp:+$('fTP').value,bigA:+$('fBigA').value,bigB:+$('fBigB').value});
+    // 실거래 기록이 없으면 입력한 개시 포지션을 원장 첫 행으로(있으면 기록 보존)
+    if(!a.log || a.log.length===0 || (a.log.length===1 && a.log[0].open))
+      a.log = a.qty>0 ? [{open:true,date:'개시',held:a.qty,avg:a.avg,cum:(a.cum||a.qty*a.avg)}] : []; }
   else{ Object.assign(a,{V:+($('fV').value||0),band:+$('fBand').value,shares:+$('fShares').value,
     avg:+$('fAvg').value,pool:+$('fPool').value,dep:+($('fDep').value||0)}); }
   if(!editingId) accounts.push(a);
