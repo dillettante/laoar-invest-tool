@@ -36,7 +36,8 @@ def t_value(cum_buy: float, unit_buy: float) -> float:
     """T = 누적매수액 / 1회매수액, 소수점 둘째자리 올림. (진행 회차 지표)"""
     if unit_buy <= 0:
         return 0.0
-    return math.ceil(cum_buy / unit_buy * 100) / 100
+    # round(…,9): 이진 부동소수 오차로 정확한 배수가 0.01 올라가는 것 방지
+    return math.ceil(round(cum_buy / unit_buy * 100, 9)) / 100
 
 
 def big_pct(T: float, p: IMParams) -> float:
