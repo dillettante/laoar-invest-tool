@@ -168,6 +168,8 @@ function load(){ try{ accounts=JSON.parse(localStorage.getItem(KEY))||[]; }catch
 function save(){ localStorage.setItem(KEY,JSON.stringify(accounts)); if(curId)localStorage.setItem(KEY+'_cur',curId); }
 function cur(){ return accounts.find(a=>a.id===curId); }
 function uid(){ return 'a'+Math.random().toString(36).slice(2,9); }
+// 계좌명·티커는 사용자 입력(불러오기 JSON 포함) — innerHTML 삽입 전 이스케이프
+function esc(x){ return String(x).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function demo(){ return {id:uid(),name:'TQQQ VR 적립 (예시)',strategy:'vr_accum',ticker:'TQQQ',
   V:0,band:0.15,shares:100,avg:60,pool:5000,dep:200}; }
 function tpDefault(t){ t=(t||'').toUpperCase(); return t==='SOXL'?0.20:t==='TQQQ'?0.15:0.10; }
@@ -177,7 +179,7 @@ function renderSelect(){
   $('acctSel').innerHTML=accounts.map(a=>`<option value="${a.id}" ${a.id===curId?'selected':''}>${labelOf(a)}</option>`).join('');
   $('emptyMsg').hidden = accounts.length>0;
 }
-function labelOf(a){ const s={vr_accum:'VR적립',vr_hold:'VR거치',vr_wd:'VR인출',im:'무매'}[a.strategy]; return `${a.name} · ${a.ticker} · ${s}`; }
+function labelOf(a){ const s={vr_accum:'VR적립',vr_hold:'VR거치',vr_wd:'VR인출',im:'무매'}[a.strategy]; return `${esc(a.name)} · ${esc(a.ticker)} · ${s}`; }
 
 // ── 가격 ──
 async function priceOf(ticker,force){
@@ -193,12 +195,12 @@ async function renderCur(force){
   if(!a){ v.innerHTML=''; return; }
   v.innerHTML='<div class="muted">시세 불러오는 중…</div>';
   let price; try{ price=await priceOf(a.ticker,force); }
-  catch(e){ v.innerHTML=`<div class="warn">시세 조회 실패: ${e.message}. 티커(${a.ticker})를 확인하세요.</div>`; return; }
+  catch(e){ v.innerHTML=`<div class="warn">시세 조회 실패: ${esc(e.message)}. 티커(${esc(a.ticker)})를 확인하세요.</div>`; return; }
   const close=price.close;
   try{
     if(a.strategy==='im') await renderIM(a,close,price.date);
     else await renderVR(a,close,price.date);
-  }catch(e){ v.innerHTML=`<div class="warn">계산 실패: ${e.message}</div>`; }
+  }catch(e){ v.innerHTML=`<div class="warn">계산 실패: ${esc(e.message)}</div>`; }
 }
 function kpi(label,usdVal,sm,klass){
   const w=won(usdVal); return `<div class="kpi"><div class="l">${label}</div>`
@@ -211,7 +213,7 @@ async function renderVR(a,close,date){
   const acct=a.strategy==='vr_hold'?'거치식':a.strategy==='vr_wd'?'인출식':'적립식';
   const s=await post('/api/vr_plan',{V,qty:a.shares,avg:a.avg,pool:a.pool,close,band:a.band,acct_type:acct});
   $('view').innerHTML=`
-    <div class="sub" style="margin-bottom:12px">${a.ticker} · ${acct} · ${date} 종가 ${usd2(close)}</div>
+    <div class="sub" style="margin-bottom:12px">${esc(a.ticker)} · ${acct} · ${date} 종가 ${usd2(close)}</div>
     <div class="signal t-${s.tone}"><div class="big">${SIG[s.tone]}</div><div class="act">${s.action}</div></div>
     <div class="grid">
       ${kpi('평가금',s.equity)}
@@ -259,7 +261,7 @@ async function renderIM(a,close,date){
     close,take_profit:a.tp,big_a:a.bigA,big_b:a.bigB});
   const phase = s.cycle_done?'사이클 시작 (보유 0)':(s.exhausted?'원금 소진 임박':s.phase);
   $('view').innerHTML=`
-    <div class="sub" style="margin-bottom:10px">${a.ticker} · 무한매수 ${a.version||'v2.2'} · <b>사이클 ${R.cycle}</b> · ${date} 종가 ${usd2(close)}</div>
+    <div class="sub" style="margin-bottom:10px">${esc(a.ticker)} · 무한매수 ${a.version||'v2.2'} · <b>사이클 ${R.cycle}</b> · ${date} 종가 ${usd2(close)}</div>
     <details class="card" style="margin-bottom:14px">
       <summary>📖 무한매수 처음이세요? — 용어·읽는 법 (펼치기)</summary>
       <div style="margin-top:10px;font-size:13.5px;line-height:1.75">
